@@ -4,7 +4,7 @@ La configurazione è pronta. Il servizio **non è ancora pubblicato**: occorrono
 
 ## Render: accesso tramite browser
 
-Il file [`render.yaml`](../render.yaml) prepara un servizio web Docker sul piano gratuito, con controllo di salute `/api/health`, una sola istanza e deploy automatici disattivati.
+Il file [`render.yaml`](../render.yaml) prepara un servizio web Docker sul piano gratuito, con controllo di salute `/api/health`, una sola istanza e deploy automatici attivi.
 
 1. Registrarsi su [Render](https://render.com/) e collegare il proprio account GitHub quando richiesto.
 2. Scegliere **New → Blueprint**, selezionare `oresteant-hash/Prova` e il ramo `codex/momentum-atelier`, quindi verificare il piano gratuito proposto prima di creare il servizio.
@@ -12,6 +12,12 @@ Il file [`render.yaml`](../render.yaml) prepara un servizio web Docker sul piano
 4. Aprire l'indirizzo HTTPS assegnato da Render. `/api/health` deve rispondere con `status: ok`; la pagina iniziale permette di eseguire la demo sintetica e l'aggiornamento Yahoo.
 
 Il piano gratuito può sospendere il servizio inattivo e richiedere tempo al primo accesso. La sua disponibilità dipende dalle condizioni dell'account Render; la configurazione non attiva un piano a pagamento.
+
+## Modifiche richieste nella chat
+
+Dopo il collegamento iniziale, l'utente descrive qui le modifiche. Codex sviluppa, verifica e carica la versione sul ramo collegato; Render pubblica automaticamente quell'aggiornamento. L'utente continua a usare lo stesso indirizzo web. Il sito cambia quando la build è completata, normalmente dopo qualche minuto, non mentre il codice viene scritto.
+
+Se il servizio era già stato creato con la precedente configurazione, verificare una sola volta nelle impostazioni Render che Auto-Deploy sia attivo sul ramo `codex/momentum-atelier`, oppure sincronizzare il Blueprint aggiornato. Un cambiamento del file nel repository, da solo, non prova che le impostazioni del servizio esistente siano già cambiate.
 
 ## Dati e riavvii
 

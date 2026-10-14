@@ -1,0 +1,167 @@
+Specifica per Codex — Strategia Momentum / Trend Following multi-asset
+Devi ricostruire una strategia mensile multi-asset long-only e la relativa applicazione di analisi e backtest.
+L’obiettivo iniziale è implementare correttamente le regole descritte, rendendo verificabili dati, segnali, selezioni, pesi e risultati. Eventuali ottimizzazioni della strategia devono essere sviluppate successivamente, come varianti separate.
+Se è disponibile il codice precedente, analizzalo prima di modificarlo e conserva una versione capace di riprodurne il comportamento. Le convenzioni introdotte in questa specifica per risolvere ambiguità devono essere confrontate con il codice originale, senza attribuirle automaticamente alla precedente implementazione.
+1. Universo delle asset class e strumenti
+Mantieni esattamente questi identificativi e queste etichette:
+ID	Asset class	Strumento	ISIN	Ticker Yahoo Finance
+0	Monetario €	Amundi Euro Government Bond 0-6 M UCITS ETF Acc	FR0010754200	C3M.MI
+1	Obbl Short Term	iShares € Govt Bond 3-5yr UCITS ETF EUR (Dist)	IE00B1FZS681	IBGX.MI
+2	Obbl MLT	iShares € Govt Bond 15-30yr UCITS ETF EUR (Dist)	IE00B1FZS913	IBGL.MI
+3	Global Aggr. Corporate	iShares Global Corp Bond UCITS ETF USD (Dist)	IE00B7J7TB45	CORP.MI
+4	Obbl Corp High Yield	iShares € High Yield Corp Bond UCITS ETF EUR (Dist)	IE00B66F4759	IHYG.MI
+5	Obbl EM	iShares J.P. Morgan $ EM Corp Bond UCITS ETF USD (Dist)	IE00B6TLBW47	EMCR.MI
+6	Azioni Europe	iShares Core MSCI Europe UCITS ETF EUR (Acc)	IE00B4K48X80	SMEA.MI
+7	Az North America	iShares Core S&P 500 UCITS ETF USD (Acc)	IE00B5BMR087	CSSPX.MI
+8	Az Tecnologico	Invesco EQQQ Nasdaq-100 UCITS ETF Dist	IE0032077012	EQQQ.MI
+9	Az EM	iShares Core MSCI EM IMI UCITS ETF USD (Acc)	IE00BKM4GZ66	EIMI.MI
+10	Oro	WisdomTree Physical Gold	JE00B1VS3770	PHAU.MI
+11	Broad Commodities	Invesco Bloomberg Commodity UCITS ETF	IE00BD6FTQ80	CMOD.MILe quotazioni selezionate sono in EUR. Prima dell’utilizzo verifica che il provider restituisca effettivamente lo strumento, il mercato e la valuta attesi. Non sostituire automaticamente un ticker non disponibile con un prodotto differente.
+Precisazioni sulle esposizioni:
+- Monetario €: governativi euro con scadenza 0–6 mesi.
+- Obbl Short Term: governativi euro con scadenza 3–5 anni.
+- Obbl MLT: viene mantenuto il precedente IBGL, quindi governativi euro con scadenza 15–30 anni. L’etichetta è generica, ma l’esposizione implementata è a lungo termine.
+- Global Aggr. Corporate: corporate globali investment grade.
+- Obbl Corp High Yield: corporate high yield denominati in EUR.
+- Obbl EM: corporate emergenti denominati in USD, senza copertura EUR.
+- Az North America: S&P 500, per scelta esplicita dell’utente.
+- Az Tecnologico: Nasdaq-100, che non è un indice tecnologico settoriale puro.
+- Az EM: MSCI Emerging Markets IMI.
+- Oro: ETC su oro fisico.
+- Broad Commodities: esposizione diversificata a materie prime tramite un indice su futures.
+2. Dati e valuta
+La valuta di riferimento del portafoglio è EUR.
+Usa inizialmente Yahoo Finance tramite yfinance, conservando i dati scaricati e registrando data di aggiornamento e versione della libreria.
+Per segnali e rendimenti lordi utilizza serie coerenti con dividendi e distribuzioni reinvestiti. I prezzi auto-adjusted possono essere usati dopo averne verificato la qualità. Non aggiungere nuovamente distribuzioni già incorporate nella serie.
+Per le quotazioni in EUR della tabella non applicare ulteriori conversioni USD/EUR.
+La valuta della quotazione è distinta dalla valuta contabile del fondo e dall’esposizione valutaria sottostante: un ETF quotato in EUR può mantenere rischio di cambio.
+Per contabilità delle operazioni e fiscalità servono invece prezzi negoziabili, quantità, distribuzioni e costo fiscale: non trattare un prezzo storico adjusted come prezzo effettivo di acquisto.
+Il TER già incorporato nei prezzi degli strumenti non deve essere sottratto nuovamente. Commissioni e spread dell’investitore vanno gestiti separatamente.
+3. Segnale di momentum
+La strategia utilizza chiusure mensili total return in EUR.
+Per ciascun asset i e mese completo t:
+R3(i,t) = P(i,t) / P(i,t−3) − 1
+R6(i,t) = P(i,t) / P(i,t−6) − 1
+R12(i,t) = P(i,t) / P(i,t−12) − 1
+Score(i,t) = a3 × R3(i,t) + a6 × R6(i,t) + a12 × R12(i,t)
+Sono disponibili due formule:
+- Uniforme, predefinita: a3 = a6 = a12 = 1/3.
+- Reattiva, variante: a3 = 0,50; a6 = 0,30; a12 = 0,20.
+I rendimenti delle tre finestre sono cumulati, senza annualizzarli prima della media. Non viene saltato l’ultimo mese.
+Usa precisione piena per calcoli e selezione; arrotonda soltanto nella visualizzazione.
+4. Eleggibilità e selezione
+Un asset è eleggibile se:
+1. dispone di tutti i dati necessari;
+2. ha score strettamente positivo;
+3. supera l’eventuale filtro MA12, se attivato.
+Il filtro MA12 è disattivato come impostazione iniziale. Quando attivo richiede:
+P(i,t) > media delle ultime 12 chiusure mensili, includendo t.
+Usa la stessa serie total return impiegata per il momentum.
+Ordina gli eleggibili per score decrescente e seleziona i migliori N.
+Impostazione iniziale: N = 6, modificabile almeno tra 2 e 6.
+In caso di parità esatta usa l’ID crescente come criterio deterministico.
+5. Pesatura e fallback
+Implementa tre modalità:
+- Uniforme: pesi relativi uguali tra i selezionati.
+- Momentum Score, predefinita: pesi relativi proporzionali agli score positivi.
+- Inversa volatilità: pesi relativi proporzionali al reciproco della volatilità.
+Per l’inversa volatilità usa la deviazione standard campionaria degli ultimi 12 rendimenti mensili, con ddof=1. Gli asset senza volatilità calcolabile o con volatilità nulla non sono utilizzabili in questa modalità.
+Convenzione proposta per risolvere il caso con meno di N eleggibili:
+Se gli asset selezionati sono k, assegna al gruppo selezionato una quota complessiva:
+q = k / N
+Distribuisci q secondo la modalità di pesatura scelta. Assegna al fallback la quota:
+1 − q
+Esempio: N=6, tre selezionati diversi dal fallback, score 10%, 6% e 4%.
+Con pesatura Momentum Score:
+- primo asset: 25%;
+- secondo asset: 15%;
+- terzo asset: 10%;
+- fallback: 50%.
+Questa convenzione deve essere confrontata con il vecchio codice. Se il codice investiva invece il 100% sui soli asset eleggibili, conserva quel comportamento come variante separata.
+Fallback predefinito: C3M.MI.
+Fallback alternativo: IBGX.MI.
+Se nessun asset è eleggibile, investi il 100% nel fallback, anche se il suo score è negativo.
+Se il fallback è già selezionato nella graduatoria, somma il peso da selezione e la quota residua sulla medesima posizione.
+I pesi devono essere non negativi e sommare sempre al 100%.
+6. Calendario e ribilanciamento
+Il segnale del mese completo t determina l’allocazione del mese t+1.
+Nel backtest mensile idealizzato:
+R_portafoglio(t+1) = somma dei pesi determinati a fine t × rendimenti degli asset nel mese t+1.
+Questa convenzione assume ribilanciamento ai prezzi di fine mese, senza ritardo di esecuzione. Va dichiarata come ipotesi teorica.
+Una simulazione operativa deve invece utilizzare un’esecuzione successiva alla disponibilità del segnale, per esempio nella prima seduta seguente, considerando i prezzi effettivi.
+La strategia a pesi target ribilancia mensilmente anche quando gli strumenti selezionati restano gli stessi.
+Gli ordini devono essere calcolati confrontando i target con le posizioni effettive dopo i movimenti di mercato. Non basta confrontare i pesi target di due mesi consecutivi.
+Una versione che vende soltanto quando un asset esce dalla selezione costituisce una variante distinta, con pesi e risultati propri.
+7. Storia disponibile e proxy
+Implementa separatamente:
+A. Universo completo con strumenti reali
+Usa tutti i 12 strumenti della tabella, senza proxy. Il backtest parte quando esiste la storia necessaria per tutti.
+Per calcolare il rendimento a 12 mesi servono almeno 13 chiusure mensili consecutive.
+B. Universo progressivo
+Consenti un universo che si amplia nel tempo. Il minimo iniziale proposto è 10 asset disponibili.
+Ogni asset diventa disponibile soltanto quando possiede tutta la storia necessaria per segnale e pesatura. Il numero di asset disponibili è distinto dal numero di asset con score positivo.
+C. Estensione storica tramite proxy
+Gestiscila come analisi separata, documentando per ogni raccordo fonte, esposizione, valuta, copertura, duration quando rilevante e trattamento delle distribuzioni.
+Non riutilizzare automaticamente i proxy del precedente documento come equivalenti degli strumenti attuali.
+Concatena rendimenti coerenti senza introdurre salti artificiali di prezzo. Non riempire retroattivamente periodi anteriori alla disponibilità delle informazioni.
+8. Fiscalità e costi
+Capitale iniziale della simulazione contabile: €100.000.
+Mantieni come modello convenzionale iniziale:
+- aliquota del 26%;
+- nessuna compensazione delle minusvalenze;
+- tassazione delle plusvalenze realizzate;
+- trattamento esplicito delle distribuzioni.
+Queste sono ipotesi semplificate: non rappresentano automaticamente la fiscalità italiana effettiva di ogni ETF o ETC.
+Mostra distintamente:
+1. Momentum lordo, prima delle imposte dell’investitore.
+2. Momentum 1.0 standard — fiscalità semplificata sulle sole uscite complete, come richiesto nel precedente handoff.
+3. Momentum Score — fiscalità anche sulle vendite parziali, includendo il ribilanciamento.
+Se la seconda colonna mantiene economicamente i ribilanciamenti parziali ma ne omette le imposte, deve essere identificata come simulazione fiscale semplificata.
+Se invece non effettua materialmente le vendite parziali, deve avere una propria ricostruzione delle posizioni e dei rendimenti.
+Calcola le plusvalenze sulla quantità venduta e sul relativo costo medio. Le imposte colpiscono il guadagno, non l’intero controvalore.
+Costi e imposte devono essere finanziati dal patrimonio del portafoglio.
+La soglia di 0,5 punti percentuali del precedente documento, se utilizzata per evitare operazioni, è una banda di ribilanciamento che modifica la strategia: deve essere configurabile e analizzata separatamente.
+Confronta tutte le strategie sia prima della liquidazione finale sia dopo una liquidazione finale equivalente.
+9. Benchmark
+Implementa come benchmark proposti:
+- Azionario sviluppato globale: B&H su SWDA.MI, iShares Core MSCI World UCITS ETF, ISIN IE00B4L5Y983.
+- 60/40: 60% SWDA.MI e 40% AGGH.MI, iShares Core Global Aggregate Bond UCITS ETF EUR Hedged, ISIN IE00BDBRDM35.
+Il 60/40 viene ribilanciato annualmente. Tra i ribilanciamenti lascia fluttuare i pesi.
+Questi benchmark sono scelte esplicite della nuova specifica: se il codice originale utilizzava strumenti diversi, conserva anche il confronto precedente.
+Utilizza periodo comune, valuta EUR, rendimenti total return e convenzioni coerenti su costi e imposte.
+10. Interfaccia e risultati
+Mostra separatamente:
+- allocazione applicata al mese corrente, derivata dall’ultimo mese completo;
+- segnale provvisorio del mese corrente;
+- performance aggiornata all’ultima quotazione disponibile.
+Non presentare una quotazione provvisoria etichettata a fine mese come chiusura definitiva.
+Un bucket aggiunto per aggiornare la visualizzazione non deve creare rendimenti mensili artificiali né modificare lo storico.
+Riporta almeno:
+- rendimento cumulato;
+- CAGR;
+- volatilità annualizzata;
+- massimo drawdown;
+- turnover;
+- costi e imposte, quando simulati;
+- allocazioni storiche e correnti.
+Per M mesi interi:
+CAGR = [prodotto(1 + rendimenti mensili)]^(12/M) − 1.
+Non contare un mese incompleto come un mese intero. Specifica se drawdown e volatilità sono calcolati su dati mensili o giornalieri.
+La selezione di una data personalizzata deve distinguere un calcolo giornaliero effettivo da un calcolo sui soli mesi interi. Non chiamare “rendimento dal 22 luglio” una misura che comprende tutto luglio.
+11. Verificabilità e confronto con il conto reale
+Esporta configurazione, dati, score, graduatoria, selezioni, pesi target, posizioni prima degli ordini, operazioni, costi, imposte e rendimenti.
+Il backtest è teorico e non dimostra che il conto reale abbia seguito gli stessi strumenti, pesi o prezzi di esecuzione.
+Per confrontarlo con il conto servono operazioni e flussi datati, prezzi, commissioni, imposte, distribuzioni e liquidità.
+Non confrontare direttamente il 7,01% del rendiconto precedentemente condiviso, compatibile con risultato/giacenza media, con il +3,52% composto riportato dalla vecchia app.
+Utilizza TWR per il confronto della performance della gestione e XIRR per la prospettiva del capitale effettivamente investito, quando sono disponibili i dati necessari.
+Non modificare la strategia per far coincidere artificialmente questi risultati.
+12. Consegna richiesta
+Consegna:
+- codice avviabile e istruzioni;
+- dipendenze;
+- configurazione iniziale salvata;
+- anagrafica degli strumenti verificata;
+- esportazioni mensili;
+- verifiche su assenza di look-ahead, pesi, fallback, ribilanciamenti e contabilità;
+- elenco delle differenze rispetto al codice originale, se disponibile.
+Mantieni separati il modello originario, le correzioni tecniche e le eventuali varianti sperimentali.

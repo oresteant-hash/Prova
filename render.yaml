@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: momentum-atelier
+    runtime: docker
+    repo: https://github.com/oresteant-hash/Prova
+    branch: codex/momentum-atelier
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    autoDeploy: false
+    numInstances: 1
+    healthCheckPath: /api/health

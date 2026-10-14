@@ -1,0 +1,16 @@
+{
+  "formula": "uniform",
+  "top_n": 6,
+  "ma_filter": false,
+  "weighting": "score",
+  "fallback": "C3M.MI",
+  "universe_mode": "complete",
+  "min_assets": 10,
+  "initial_capital": 100000,
+  "tax_rate": 0.26,
+  "commission_bps": 0,
+  "spread_bps": 0,
+  "rebalance_band": 0,
+  "start_date": null,
+  "end_date": null
+}
